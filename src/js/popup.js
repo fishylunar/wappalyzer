@@ -112,7 +112,7 @@ function getCsv() {
   try {
     let protocol = ''
 
-    ;({ hostname, protocol } = new URL(Popup.cache.url))
+      ; ({ hostname, protocol } = new URL(Popup.cache.url))
 
     www = hostname.startsWith('www')
 
@@ -130,8 +130,7 @@ function getCsv() {
     ),
     ...attributeKeys.map((key) =>
       chrome.i18n.getMessage(
-        `attribute${
-          key.charAt(0).toUpperCase() + key.slice(1).replace('.', '_')
+        `attribute${key.charAt(0).toUpperCase() + key.slice(1).replace('.', '_')
         }`
       )
     ),
@@ -139,9 +138,8 @@ function getCsv() {
 
   const csv = [`"${columns.join('","')}"`]
 
-  const filename = `wappalyzer${
-    hostname ? `_${hostname.replace('.', '-')}` : ''
-  }.csv`
+  const filename = `wappalyzer${hostname ? `_${hostname.replace('.', '-')}` : ''
+    }.csv`
 
   const row = [`http${https ? 's' : ''}://${www ? 'www.' : ''}${hostname}`]
 
@@ -219,12 +217,12 @@ function getTechnologySpend(technologies) {
   const spend = totals.xhigh
     ? 'Very high'
     : totals.high
-    ? 'High'
-    : totals.mid
-    ? 'Medium'
-    : totals.low
-    ? 'Low'
-    : 'Very low'
+      ? 'High'
+      : totals.mid
+        ? 'Medium'
+        : totals.low
+          ? 'Low'
+          : 'Very low'
 
   return spend
 }
@@ -449,9 +447,9 @@ const Popup = {
     // Footer
     const item =
       footers[
-        Math.round(Math.random())
-          ? 0
-          : Math.round(Math.random() * (footers.length - 1))
+      Math.round(Math.random())
+        ? 0
+        : Math.round(Math.random() * (footers.length - 1))
       ]
 
     el.footerHeadingText.textContent = item.heading
@@ -649,6 +647,42 @@ const Popup = {
 
           el.link.href = `https://www.wappalyzer.com/technologies/${categorySlug}/${slug}/?utm_source=popup&utm_medium=extension&utm_campaign=wappalyzer`
           el.name.textContent = name
+          /*
+          Super hacky way to check for GTM id
+          */
+          if (name === "Google Tag Manager") {
+            function getGTMContainerId() {
+              // Look for GTM in Google Tag Manager's script
+              const gtmScripts = document.querySelector('script[src*="googletagmanager.com/gtm.js"]');
+              if (gtmScripts) {
+                const gtmUrl = gtmScripts.src;
+                const idMatch = gtmUrl.match(/id=GTM-[A-Z0-9]+/i);
+                if (idMatch) {
+                  return idMatch[0].replace('id=', '');
+                }
+              }
+
+              // Look for GTM in dataLayer
+              if (window.google_tag_manager) {
+                const gtmIds = Object.keys(window.google_tag_manager).filter(key => key.startsWith('GTM-'));
+                if (gtmIds.length > 0) {
+                  return gtmIds[0];
+                }
+              }
+
+              return null;
+            }
+
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+              console.log("Execute Script");
+              chrome.scripting.executeScript({
+                target: { tabId: tabs[0].id },
+                func: getGTMContainerId
+              }, (result) => {
+                el.name.textContent = `${name} (${result[0].result})`;
+              });
+            });
+          }
 
           if (confidence < 100) {
             el.confidence.textContent = `${confidence}% sure`
@@ -808,8 +842,7 @@ const Popup = {
 
           th.setAttribute(
             'data-i18n',
-            `attribute${
-              key.charAt(0).toUpperCase() + key.slice(1).replace('.', '_')
+            `attribute${key.charAt(0).toUpperCase() + key.slice(1).replace('.', '_')
             }`
           )
 
@@ -932,9 +965,8 @@ const Popup = {
       // eslint-disable-next-line
       console.log(error)
 
-      el.errorMessage.textContent = `Sorry, something went wrong${
-        error.response ? ` (${error.response.status})` : ''
-      }. Please try again later.`
+      el.errorMessage.textContent = `Sorry, something went wrong${error.response ? ` (${error.response.status})` : ''
+        }. Please try again later.`
 
       if (error.response) {
         if (error.response.status === 403) {
