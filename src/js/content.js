@@ -41,6 +41,13 @@ function getJs(technologies) {
   })
 }
 
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'getLinkedInPartnerId') {
+    const partnerId = window._linkedin_data_partner_id || null;
+    sendResponse({ partnerId });
+  }
+});
+
 async function getDom(technologies) {
   const _technologies = technologies
     .filter(({ dom }) => dom && dom.constructor === Object)
@@ -227,12 +234,12 @@ const Content = {
         (await new Promise((resolve) =>
           chrome.i18n.detectLanguage
             ? chrome.i18n.detectLanguage(html, ({ languages }) =>
-                resolve(
-                  languages
-                    .filter(({ percentage }) => percentage >= 75)
-                    .map(({ language: lang }) => lang)[0]
-                )
+              resolve(
+                languages
+                  .filter(({ percentage }) => percentage >= 75)
+                  .map(({ language: lang }) => lang)[0]
               )
+            )
             : resolve()
         ))
 
@@ -402,23 +409,22 @@ const Content = {
             args instanceof Error
               ? [args.toString()]
               : args
-              ? Array.isArray(args)
-                ? args
-                : [args]
-              : [],
+                ? Array.isArray(args)
+                  ? args
+                  : [args]
+                : [],
         },
         (response) => {
           chrome.runtime.lastError
             ? func === 'error'
               ? resolve()
               : Content.driver(
-                  'error',
-                  new Error(
-                    `${
-                      chrome.runtime.lastError.message
-                    }: Driver.${func}(${JSON.stringify(args)})`
-                  )
+                'error',
+                new Error(
+                  `${chrome.runtime.lastError.message
+                  }: Driver.${func}(${JSON.stringify(args)})`
                 )
+              )
             : resolve(response)
         }
       )

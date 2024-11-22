@@ -167,6 +167,182 @@ function getCsv() {
   return { csv, filename }
 }
 
+
+// Google Tag Manager
+function getGTMContainerId() {
+  // Look for GTM in Google Tag Manager's script
+  const gtmScripts = document.querySelector('script[src*="googletagmanager.com/gtm.js"]');
+  if (gtmScripts) {
+    const gtmUrl = gtmScripts.src;
+    const idMatch = gtmUrl.match(/id=GTM-[A-Z0-9]+/i);
+    if (idMatch) {
+      return idMatch[0].replace('id=', '');
+    }
+  }
+
+  // Look for GTM in dataLayer
+  if (window.google_tag_manager) {
+    const gtmIds = Object.keys(window.google_tag_manager).filter(key => key.startsWith('GTM-'));
+    if (gtmIds.length > 0) {
+      return gtmIds[0];
+    }
+  }
+
+  return null;
+}
+
+// Facebook / Meta Pixel
+function getFacebookPixelId() {
+  var id = "";
+  const scriptElements = document.querySelectorAll('script[type="text/javascript"]');
+  for (const scriptElement of scriptElements) {
+    const scriptText = scriptElement.textContent;
+    try {
+      id = scriptText.split('fbq("init","')[1].split('"')[0]
+    } catch (error) {
+    }
+  }
+  if (id !== "") {
+    return id
+  }
+  return null;
+}
+
+// Leadinfo
+function getLeadinfoId() {
+  var id = "";
+  const scriptElements = document.querySelectorAll('script[type="text/javascript"]');
+  for (const scriptElement of scriptElements) {
+    const scriptText = scriptElement.textContent;
+    try {
+      id = scriptText.split('"leadinfo","')[1].split('"')[0]
+    } catch (error) {
+    }
+  }
+  if (id !== "") {
+    return id
+  }
+  return null;
+}
+function getLinkedInPartnerId() {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs.length > 0) {
+        chrome.tabs.sendMessage(tabs[0].id, { action: 'getLinkedInPartnerId' }, (response) => {
+          if (response && response.partnerId) {
+            resolve(response.partnerId);
+          } else {
+            reject('LinkedIn partner ID not found');
+          }
+        });
+      } else {
+        reject('No active tabs found');
+      }
+    });
+  });
+}
+
+/*
+// LinkedIn Insight
+function getLinkedInInsightId() {
+  var id = "";
+
+  try {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      chrome.scripting.executeScript({
+        target: { tabId: tabs[0].id },
+        func: () => {
+          return _linkedin_data_partner_id;
+        }
+      }, (result) => {
+        id = `${result[0].result}`;
+      });
+    });
+  } catch (error) {
+    alert(error)
+  }
+
+  if (id !== "") {
+    return id
+  }
+  return null;
+
+}
+*/
+// Google Analytics
+function getGoogleAnalyticsId() {
+  var id = "";
+  const scriptElements = document.querySelectorAll('script[type="text/javascript"]');
+  for (const scriptElement of scriptElements) {
+    const scriptText = scriptElement.textContent;
+    if (scriptElement.src.includes("gtag")) {
+      try {
+        id = scriptElement.src.split('gtag/js?id=')[1].split('&l=')[0]
+      } catch (error) {
+      }
+    }
+  }
+  if (id !== "") {
+    return id
+  }
+  return null;
+}
+
+function appendId(name, element) {
+  switch (name) {
+    case "Google Tag Manager":
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        chrome.scripting.executeScript({
+          target: { tabId: tabs[0].id },
+          func: getGTMContainerId
+        }, (result) => {
+          element.textContent = `${name} (${result[0].result})`;
+        });
+      });
+      break;
+    case "Facebook Pixel":
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        chrome.scripting.executeScript({
+          target: { tabId: tabs[0].id },
+          func: getFacebookPixelId
+        }, (result) => {
+          element.textContent = `${name} (${result[0].result})`;
+        });
+      });
+      break;
+    case "Leadinfo":
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        chrome.scripting.executeScript({
+          target: { tabId: tabs[0].id },
+          func: getLeadinfoId
+        }, (result) => {
+          element.textContent = `${name} (${result[0].result})`;
+        });
+      });
+      break;
+    case "Google Analytics":
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        chrome.scripting.executeScript({
+          target: { tabId: tabs[0].id },
+          func: getGoogleAnalyticsId
+        }, (result) => {
+          element.textContent = `${name} (${result[0].result})`;
+        });
+      });
+      break;
+    case "Linkedin Insight Tag":
+      console.log(window._linkedin_data_partner_id)
+      getLinkedInPartnerId()
+        .then((partnerId) => {
+          // document.getElementById('partner-id').textContent = partnerId;
+          element.textContent = `${name} (${partnerId})`;
+        })
+        .catch((error) => {
+          // document.getElementById('partner-id').textContent = error;
+        });
+      break;
+  }
+}
 function csvEscape(value = '') {
   if (Array.isArray(value)) {
     value = value
@@ -631,9 +807,9 @@ const Popup = {
       )
 
       technologies.forEach(
-        ({ name, slug, confidence, version, icon, website }) => {
+        ({ name, slug, confidence, version, icon, website, value }) => {
           const technologyNode = Popup.templates.technology.cloneNode(true)
-
+          console.dir({ name, slug, confidence, version, icon, website, value })
           const el = {
             technologies: categoryNode.querySelector('.technologies'),
             iconImage: technologyNode.querySelector('.technology__icon img'),
@@ -647,43 +823,11 @@ const Popup = {
 
           el.link.href = `https://www.wappalyzer.com/technologies/${categorySlug}/${slug}/?utm_source=popup&utm_medium=extension&utm_campaign=wappalyzer`
           el.name.textContent = name
+
           /*
-          Super hacky way to check for GTM id
+          Super hacky way to check for IDs
           */
-          if (name === "Google Tag Manager") {
-            function getGTMContainerId() {
-              // Look for GTM in Google Tag Manager's script
-              const gtmScripts = document.querySelector('script[src*="googletagmanager.com/gtm.js"]');
-              if (gtmScripts) {
-                const gtmUrl = gtmScripts.src;
-                const idMatch = gtmUrl.match(/id=GTM-[A-Z0-9]+/i);
-                if (idMatch) {
-                  return idMatch[0].replace('id=', '');
-                }
-              }
-
-              // Look for GTM in dataLayer
-              if (window.google_tag_manager) {
-                const gtmIds = Object.keys(window.google_tag_manager).filter(key => key.startsWith('GTM-'));
-                if (gtmIds.length > 0) {
-                  return gtmIds[0];
-                }
-              }
-
-              return null;
-            }
-
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-              console.log("Execute Script");
-              chrome.scripting.executeScript({
-                target: { tabId: tabs[0].id },
-                func: getGTMContainerId
-              }, (result) => {
-                el.name.textContent = `${name} (${result[0].result})`;
-              });
-            });
-          }
-
+          appendId(name, el.name)
           if (confidence < 100) {
             el.confidence.textContent = `${confidence}% sure`
           } else {
